@@ -28,6 +28,8 @@ Clone 代码库和安装 [requirements.txt](./requirements.txt)，环境需要�
 git clone https://github.com/PaddlePaddle/PaddleYOLO  # clone
 cd PaddleYOLO
 pip install -r requirements.txt  # install
+python setup.py install
+./run.sh
 ```
 
 </details>
