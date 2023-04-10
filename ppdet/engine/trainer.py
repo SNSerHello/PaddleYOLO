@@ -55,6 +55,16 @@ logger = setup_logger('ppdet.engine')
 
 __all__ = ['Trainer']
 
+RESET_INIT_MODELS = [
+    'YOLOv5', 'YOLOv6', 'YOLOv7', 'YOLOv8', 'YOLOv5u', 'YOLOv7u'
+]
+RESET_BN_MODELS = [
+    'YOLOX', 'YOLOv5', 'YOLOv6', 'YOLOv7', 'YOLOv8', 'YOLOv5u', 'YOLOv7u'
+]
+UNSUPPORTED_TRAINING_MODELS = [
+    'RTMDet', 'YOLOv6', 'YOLOv8', 'YOLOv5u', 'YOLOv7u'
+]
+
 
 class Trainer(object):
     def __init__(self, cfg, mode='train'):
@@ -69,8 +79,7 @@ class Trainer(object):
         self.custom_white_list = self.cfg.get('custom_white_list', None)
         self.custom_black_list = self.cfg.get('custom_black_list', None)
 
-        if self.cfg.architecture in ['RTMDet', 'YOLOv6', 'YOLOv8'
-                                     ] and self.mode == 'train':
+        if self.cfg.architecture in UNSUPPORTED_TRAINING_MODELS and self.mode == 'train':
             raise NotImplementedError('{} training not supported yet.'.format(
                 self.cfg.architecture))
 
@@ -91,12 +100,10 @@ class Trainer(object):
             self.model = self.cfg.model
             self.is_loaded_weights = True
 
-        if self.cfg.architecture in ['YOLOv5', 'YOLOv6', 'YOLOv7', 'YOLOv8']:
+        if self.cfg.architecture in RESET_INIT_MODELS:
             reset_initialized_parameter(self.model)
 
-        if cfg.architecture in [
-                'YOLOX', 'YOLOv5', 'YOLOv6', 'YOLOv7', 'YOLOv8'
-        ]:
+        if cfg.architecture in RESET_BN_MODELS:
             for k, m in self.model.named_sublayers():
                 if isinstance(m, nn.BatchNorm2D):
                     m._epsilon = 1e-3  # for amp(fp16)
@@ -153,7 +160,7 @@ class Trainer(object):
             if self.cfg.get('unstructured_prune'):
                 self.pruner = create('UnstructuredPruner')(self.model,
                                                            steps_per_epoch)
-        
+
         if self.use_amp and self.amp_level == 'O2':
             self.model, self.optimizer = paddle.amp.decorate(
                 models=self.model,
@@ -323,11 +330,10 @@ class Trainer(object):
         if validate:
             self.cfg['EvalDataset'] = self.cfg.EvalDataset = create(
                 "EvalDataset")()
-       
+
         model = self.model
         if self.cfg.get('to_static', False):
             model = apply_to_static(self.cfg, model)
-       
 
         sync_bn = (
             getattr(self.cfg, 'norm_type', None) == 'sync_bn' and
@@ -377,7 +383,7 @@ class Trainer(object):
 
         use_fused_allreduce_gradients = self.cfg.get(
             'use_fused_allreduce_gradients', False)
-       
+
         for epoch_id in range(self.start_epoch, self.cfg.epoch):
             self.status['mode'] = 'train'
             self.status['epoch_id'] = epoch_id
@@ -406,7 +412,7 @@ class Trainer(object):
                 self._compose_callback.on_step_begin(self.status)
                 data['epoch_id'] = epoch_id
                 data['num_gpus'] = self._nranks
-                
+
                 if self.use_amp:
                     with paddle.amp.auto_cast(
                             enable=self.cfg.use_gpu or self.cfg.use_npu or
@@ -441,7 +447,7 @@ class Trainer(object):
                     self.pruner.step()
                 self.optimizer.clear_grad()
                 self.status['learning_rate'] = curr_lr
-               
+
                 if self._nranks < 2 or self._local_rank == 0:
                     self.status['training_staus'].update(outputs)
 
